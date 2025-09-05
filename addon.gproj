@@ -1,0 +1,8 @@
+GameProject {
+ ID "ToastCore"
+ GUID "66456BC3344EE7BA"
+ TITLE "ToastCore"
+ Dependencies {
+  "58D0FB3206B6F859"
+ }
+}
