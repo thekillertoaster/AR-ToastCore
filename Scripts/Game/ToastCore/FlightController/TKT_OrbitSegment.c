@@ -19,7 +19,7 @@ class TKT_OrbitSegment : TKT_PathSegment
 		vector center = m_center + Vector(0, m_height, 0);
 		vector q = worldPoint - center;
 	
-		float yaw = m_yawDeg * 0.0174532925199433;
+		float yaw = m_yawDeg * Math.DEG2RAD;
 		float cy = Math.Cos(yaw), sy = Math.Sin(yaw);
 	
 		// rotate into local circle frame (undo yaw)
@@ -34,7 +34,7 @@ class TKT_OrbitSegment : TKT_PathSegment
 		float dir; if (m_ccw) dir = 1.0; else dir = -1.0;
 		float theta = m_theta0 + (m_speed / Math.Max(0.01, m_radius)) * t * dir;
 		
-		float yaw = m_yawDeg * 0.0174532925199433;
+		float yaw = m_yawDeg * Math.DEG2RAD;
 		float cy = Math.Cos(yaw), sy = Math.Sin(yaw);
 		float c = Math.Cos(theta), s = Math.Sin(theta);
 
@@ -51,7 +51,7 @@ class TKT_OrbitSegment : TKT_PathSegment
 		up = up0;
 		vel = fwd * m_speed;
 		
-		if ((int)(t*10)%10==0) PrintFormat("[Orbit] t=%1", t);
+		//if ((int)(t*10)%10==0) PrintFormat("[Orbit] t=%1", t);
 
 		// stop when duration reached (for finite loops)
 		float dur = Duration();
@@ -72,7 +72,7 @@ class TKT_OrbitSegment : TKT_PathSegment
 	
 		const int N = 64;
 		vector pts[N];
-		float yaw = m_yawDeg * 0.0174532925199433;
+		float yaw = m_yawDeg * Math.DEG2RAD;
 		float cy = Math.Cos(yaw), sy = Math.Sin(yaw);
 		for (int i=0; i<N; i++)
 		{
@@ -105,4 +105,53 @@ static float TKT_ScoreTangentAlign(vector center3D, bool ccw, vector pOnCircle, 
 	else     tA = Vector( radial[2], 0,-radial[0]);   // -90°
 
 	return tA[0]*dir[0] + tA[2]*dir[2];
+}
+
+static bool TKT_ComputeCircleTangent(vector c1, float r1, bool ccw1,
+                                     vector c2, float r2, bool ccw2,
+                                     bool chooseUpper,
+                                     out vector p1, out vector p2, out vector dir)
+{
+	// Work in XZ; preserve Y
+	vector u = c2 - c1; u[1] = 0;
+	float D = Math.Sqrt(u[0]*u[0] + u[2]*u[2]);
+	if (D < 0.001) return false;
+	u = u / D;
+
+	vector v = Vector(-u[2], 0, u[0]);         // 90° left of u
+	bool isExternal = (ccw1 == ccw2);
+
+	// Existence checks (helps avoid weirdness near-degenerate):
+	if (isExternal) {
+		if (D < Math.AbsFloat(r1 - r2)) return false;
+	} else {
+		if (D < (r1 + r2)) return false;
+	}
+
+	float R; if (isExternal) R = (r1 - r2); else R = (r1 + r2);
+	float cosA = Math.Clamp(R / D, -1.0, 1.0);
+	float sinA = Math.Sqrt(Math.Max(0.0, 1.0 - cosA * cosA));
+
+	float sgn;
+	if (chooseUpper) sgn = 1.0;
+	else sgn = -1.0;
+
+	// Radius direction at the tangent point on circle A
+	vector radial1 = u * cosA + v * (sgn * sinA);
+
+	// *** Key fix: internal uses the NEGATIVE of radial1 on circle B ***
+	vector radial2;
+	if (isExternal) radial2 = radial1;
+	else radial2 = -radial1;
+
+	p1 = c1 + radial1 * r1;
+	p2 = c2 + radial2 * r2;
+
+	// Tangent direction is -90° from radial1; ensure it points from p1 to p2
+	dir = Vector(radial1[2], 0, -radial1[0]);
+	vector seg = p2 - p1; seg[1] = 0;
+	if (dir[0]*seg[0] + dir[2]*seg[2] < 0) dir = -dir;
+
+	p1[1] = c1[1]; p2[1] = c2[1];
+	return true;
 }
